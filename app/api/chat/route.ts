@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
           const startTime = Date.now();
 
           // Get workflow from mastra and use createRunAsync
-          const workflow = mastra.getWorkflows()['governed-rag-answer'];
+          const workflow = mastra.getWorkflows()['local-rag-answer'];
           const run = await workflow.createRunAsync();
-          
+
           const result = await run.start({
             inputData: { question }
           });

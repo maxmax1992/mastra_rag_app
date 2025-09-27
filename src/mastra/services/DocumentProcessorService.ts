@@ -4,7 +4,6 @@ import * as fs from "fs/promises";
 
 import { ChunkingService, ChunkingOptions } from "./ChunkingService";
 import { EmbeddingService, EmbeddingOptions } from "./EmbeddingService";
-import { ValidationService } from "./ValidationService";
 import { VectorStorageService, StorageOptions } from "./VectorStorageService";
 
 export interface DocumentInput {

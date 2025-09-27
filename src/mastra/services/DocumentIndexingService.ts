@@ -7,9 +7,7 @@ import { openAIEmbeddingProvider } from "../config/openai";
 import { ChunkingResult, ChunkingService } from "./ChunkingService";
 import { DocumentProcessorService, ProcessingOptions } from "./DocumentProcessorService";
 import { EmbeddingResult, EmbeddingService } from "./EmbeddingService";
-import { ValidationService } from "./ValidationService";
 import { StorageResult, VectorStorageService } from "./VectorStorageService";
-import { RoleService } from "./RoleService";
 
 export interface DocumentInput {
   filePath: string;
