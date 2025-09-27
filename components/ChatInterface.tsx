@@ -1,8 +1,10 @@
 'use client';
 
-import { Send, Loader2, Shield, FileText, AlertTriangle } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback, useMemo, Dispatch, SetStateAction, RefObject } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { Send, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import UserMessage from './messages/UserMessage';
+import AssistantMessage from './messages/AssistantMessage';
+import SystemMessage from './messages/SystemMessage';
 
 interface Message {
   id: string;
@@ -148,58 +150,38 @@ export default function ChatInterface() {
   return (
     <div className="glass-effect rounded-xl overflow-hidden flex flex-col h-[600px]">
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {messages.map((message: Message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`max-w-[80%] ${
-              message.role === 'user' 
-                ? 'bg-blue-600/20 border border-blue-500/30' 
-                : message.role === 'system'
-                ? 'bg-purple-600/20 border border-purple-500/30'
-                : 'bg-gray-800/50 border border-gray-700'
-            } rounded-lg p-4`}>
-              {message.role === 'assistant' && message.contexts && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {message.contexts.map((ctx, idx) => (
-                    <span
-                      key={idx}
-                      className={`inline-flex items-center text-xs px-2 py-1 rounded-full border
-                        ${ctx.classification === 'confidential' ? 'security-badge-confidential' :
-                          ctx.classification === 'internal' ? 'security-badge-internal' :
-                          'security-badge-public'}`}
-                    >
-                      <FileText className="h-3 w-3 mr-1" />
-                      {ctx.docId}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown>{message.content}</ReactMarkdown>
-              </div>
-
-              {message.citations && message.citations.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-700">
-                  <p className="text-xs text-gray-400 mb-2">Sources:</p>
-                  <div className="space-y-1">
-                    {message.citations.map((citation, idx) => (
-                      <div key={idx} className="text-xs text-gray-500">
-                        • {citation.source || citation.docId}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-2 text-xs text-gray-500">
-                {message.timestamp.toLocaleTimeString()}
-              </div>
-            </div>
-          </div>
-        ))}
+        {messages.map((message: Message) => {
+          switch (message.role) {
+            case 'user':
+              return (
+                <UserMessage
+                  key={message.id}
+                  content={message.content}
+                  timestamp={message.timestamp}
+                />
+              );
+            case 'assistant':
+              return (
+                <AssistantMessage
+                  key={message.id}
+                  content={message.content}
+                  citations={message.citations}
+                  contexts={message.contexts}
+                  timestamp={message.timestamp}
+                />
+              );
+            case 'system':
+              return (
+                <SystemMessage
+                  key={message.id}
+                  content={message.content}
+                  timestamp={message.timestamp}
+                />
+              );
+            default:
+              return null;
+          }
+        })}
         
         {loading && (
           <div className="flex justify-start">
@@ -236,7 +218,7 @@ export default function ChatInterface() {
             type="text"
             value={input}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && sendMessage()}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && sendMessage()}
             placeholder="Ask a question..."
             className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3
                      focus:outline-none focus:border-blue-500 transition-colors"
