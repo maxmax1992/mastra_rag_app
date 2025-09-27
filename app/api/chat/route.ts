@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { question } = await request.json();
+    const { question, conversationHistory } = await request.json();
 
     if (!question) {
       return NextResponse.json(
@@ -23,28 +23,31 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ content: 'Processing your request...\n\n' })}\n\n`)
+            encoder.encode(`data: ${JSON.stringify({ content: '' })}\n\n`)
           );
 
-          console.log(`Processing question: ${question}`);
+          console.log(`Processing message: ${question}`);
           const startTime = Date.now();
 
-          // Get workflow from mastra and use createRunAsync
-          const workflow = mastra.getWorkflows()['local-rag-answer'];
+          // Use the conversation workflow instead of direct RAG
+          const workflow = mastra.getWorkflows()['conversation'];
           const run = await workflow.createRunAsync();
 
           const result = await run.start({
-            inputData: { question }
+            inputData: {
+              message: question,
+              conversationHistory: conversationHistory || []
+            }
           });
 
           const duration: number = (Date.now() - startTime) / 1000;
           console.log(`Workflow completed in ${duration}s`);
 
           if (result.status === 'success') {
-            const { answer, citations } = result.result;
-            
-            // Stream the answer in chunks
-            const chunks = answer.match(/.{1,50}/g) || [answer];
+            const { response, citations, usedKnowledgeBase } = result.result;
+
+            // Stream the response in chunks
+            const chunks = response.match(/.{1,50}/g) || [response];
             for (const chunk of chunks) {
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`)
@@ -53,20 +56,21 @@ export async function POST(request: NextRequest) {
             }
 
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ 
+              encoder.encode(`data: ${JSON.stringify({
                 done: true,
-                citations,
-                contexts: []
+                citations: citations || [],
+                contexts: [],
+                usedKnowledgeBase
               })}\n\n`)
             );
           } else {
-            const errorMessage = result.status === 'failed' && 'error' in result 
+            const errorMessage = result.status === 'failed' && 'error' in result
               ? result.error?.message || 'Failed to process your request'
               : 'Failed to process your request';
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ 
+              encoder.encode(`data: ${JSON.stringify({
                 content: `⚠️ ${errorMessage}`,
-                done: true 
+                done: true
               })}\n\n`)
             );
           }
@@ -74,9 +78,9 @@ export async function POST(request: NextRequest) {
           console.error('Stream error:', error);
           const errorMessage = error instanceof Error ? error.message : 'An error occurred';
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ 
+            encoder.encode(`data: ${JSON.stringify({
               content: `❌ Error: ${errorMessage}`,
-              done: true 
+              done: true
             })}\n\n`)
           );
         } finally {

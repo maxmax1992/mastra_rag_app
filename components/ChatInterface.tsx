@@ -52,18 +52,28 @@ export default function ChatInterface() {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput('');
     setLoading(true);
 
     try {
+      // Build conversation history (exclude system messages)
+      const conversationHistory = updatedMessages
+        .filter(msg => msg.role !== 'system')
+        .map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        }));
+
       const response: Response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          question: input
+          question: input,
+          conversationHistory
         }),
       });
 

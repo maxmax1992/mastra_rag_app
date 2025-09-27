@@ -42,24 +42,43 @@ Traditional RAG systems retrieve and use any available document to answer questi
 ## 🏗️ Architecture
 
 ```mermaid
-graph LR
-    A[User Query + JWT] --> B[Identity Agent]
-    B --> C[Policy Agent]
-    C --> D[Retrieve Agent]
-    D --> E[Rerank Agent]
-    E --> F[Answer Agent]
-    F --> G[Verifier Agent]
-    G --> H[Secure Answer]
+graph TB
+    A[User Message] --> B[Conversation Agent]
+    B --> C{Need Knowledge?}
+    C -->|Yes| D[RAG Query Tool]
+    C -->|No| E[Direct Response]
+
+    D --> F[Local RAG Workflow]
+    F --> G[Retrieve Agent]
+    G --> H[Vector DB Query]
+    H --> I[Rerank Agent]
+    I --> J[Answer Agent]
+    J --> K[Verifier Agent]
+    K --> L[RAG Response]
+    L --> M[Final Response]
+
+    E --> M[Final Response]
+
+    style B fill:#e1f5fe
+    style F fill:#fff3e0
+    style M fill:#e8f5e9
 ```
 
 ### Multi-Agent Pipeline
 
-1. **Identity Agent**: Validates JWT and extracts user claims (roles, tenant, clearance)
-2. **Policy Agent**: Converts claims into access filters based on security policies
-3. **Retrieve Agent**: Queries vector database with security filters applied
-4. **Rerank Agent**: Orders retrieved contexts by relevance
-5. **Answer Agent**: Generates response using ONLY authorized contexts
-6. **Verifier Agent**: Validates answer hasn't leaked unauthorized information
+The system now features a **Conversation Agent** that intelligently routes requests:
+
+1. **Conversation Agent**: Analyzes user intent and maintains natural dialogue
+   - For casual conversation: Responds directly
+   - For knowledge queries: Invokes RAG Query Tool
+
+2. **RAG Query Tool**: Wrapper that calls the Local RAG Workflow when needed
+
+3. **Local RAG Workflow** (when invoked):
+   - **Retrieve Agent**: Queries vector database
+   - **Rerank Agent**: Orders contexts by relevance (if >8 documents)
+   - **Answer Agent**: Generates response using authorized contexts
+   - **Verifier Agent**: Validates answer quality and compliance
 
 ## 🚀 Quick Start
 
