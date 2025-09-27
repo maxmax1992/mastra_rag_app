@@ -3,10 +3,6 @@
 import { Database, Loader, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useState, useCallback, Dispatch, SetStateAction } from 'react';
 
-interface IndexingPanelProps {
-  jwt: string;
-}
-
 interface IndexingResult {
   success: boolean;
   indexed: number;
@@ -19,7 +15,7 @@ interface IndexingResult {
   }>;
 }
 
-export default function IndexingPanel({ jwt }: IndexingPanelProps) {
+export default function IndexingPanel() {
   const [isIndexing, setIsIndexing] = useState(false);
   const [result, setResult] = useState<IndexingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +31,7 @@ export default function IndexingPanel({ jwt }: IndexingPanelProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ jwt }),
+        body: JSON.stringify({}),
       });
 
       const data = await response.json();
@@ -145,12 +141,7 @@ export default function IndexingPanel({ jwt }: IndexingPanelProps) {
         <div className="flex items-start space-x-2">
           <AlertTriangle className="h-4 w-4 text-yellow-400 mt-0.5 flex-shrink-0" />
           <div className="text-xs text-gray-400">
-            <p>This will index all documents in the corpus folder with appropriate security classifications:</p>
-            <ul className="mt-1 ml-4 list-disc">
-              <li>HR/Confidential files: Admin access only</li>
-              <li>Finance/Policy files: Manager+ access</li>
-              <li>Other files: All employee access</li>
-            </ul>
+            <p>This will index all documents in the corpus folder. All documents will be accessible in local mode.</p>
           </div>
         </div>
       </div>

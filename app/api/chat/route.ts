@@ -9,11 +9,11 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { jwt, question } = await request.json();
+    const { question } = await request.json();
 
-    if (!jwt || !question) {
+    if (!question) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing question' },
         { status: STATUS_VALUE }
       );
     }
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
           const run = await workflow.createRunAsync();
           
           const result = await run.start({
-            inputData: { jwt, question }
+            inputData: { question }
           });
 
           const duration: number = (Date.now() - startTime) / 1000;

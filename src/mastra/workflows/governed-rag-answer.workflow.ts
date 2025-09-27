@@ -7,14 +7,12 @@ import { retrieveAgent, retrieveOutputSchema } from "../agents/retrieve.agent";
 import { verifierAgent, verifierOutputSchema } from "../agents/verifier.agent";
 import { logStepStart, logStepEnd, logAgentActivity, logError } from "../config/logger";
 import { jwtClaimsSchema, accessFilterSchema, documentContextSchema, ragAnswerSchema, verificationResultSchema } from "../schemas/agent-schemas";
-import { AuthenticationService } from "../services/AuthenticationService";
 
-// Step 1: Combined Authentication and Authorization
+// Step 1: Skip authentication - provide full access
 const authenticationStep = createStep({
   id: 'authentication',
-  description: 'Verify JWT token and generate access policy',
+  description: 'Bypass authentication for local use',
   inputSchema: z.object({
-    jwt: z.string(),
     question: z.string()
   }),
   outputSchema: z.object({
@@ -23,22 +21,19 @@ const authenticationStep = createStep({
   }),
   execute: async ({ inputData }) => {
     const startTime = Date.now();
-    logStepStart('authentication', { question: inputData.question, hasJWT: !!inputData.jwt });
+    logStepStart('authentication', { question: inputData.question, mode: 'local-full-access' });
 
-    try {
-      const { claims, accessFilter } = await AuthenticationService.authenticateAndAuthorize(inputData.jwt);
+    // Provide full access - all documents available
+    const output = {
+      accessFilter: {
+        allowTags: ['role:admin', 'role:manager', 'role:employee', 'role:contractor', 'tenant:all'],
+        maxClassification: 'confidential' as const
+      },
+      question: inputData.question
+    };
 
-      const output = {
-        accessFilter,
-        question: inputData.question
-      };
-
-      logStepEnd('authentication', { accessFilter: accessFilter.allowTags, maxClassification: accessFilter.maxClassification }, Date.now() - startTime);
-      return output;
-    } catch (error) {
-      logError('authentication', error, { question: inputData.question });
-      throw new Error(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    logStepEnd('authentication', { accessFilter: output.accessFilter.allowTags, maxClassification: output.accessFilter.maxClassification }, Date.now() - startTime);
+    return output;
   }
 });
 
@@ -323,9 +318,8 @@ const verifyStep = createStep({
 // Create the workflow
 export const governedRagAnswer = createWorkflow({
   id: "governed-rag-answer",
-  description: "Multi-agent governed RAG: auth → retrieve+rerank → answer → verify",
+  description: "Multi-agent RAG: retrieve+rerank → answer → verify",
   inputSchema: z.object({
-    jwt: z.string(),
     question: z.string()
   }),
   outputSchema: z.object({

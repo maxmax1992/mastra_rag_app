@@ -17,12 +17,7 @@ interface Message {
   timestamp: Date;
 }
 
-interface ChatInterfaceProps {
-  jwt: string;
-  role: string;
-}
-
-export default function ChatInterface({ jwt, role }: ChatInterfaceProps) {
+export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,10 +35,10 @@ export default function ChatInterface({ jwt, role }: ChatInterfaceProps) {
     setMessages([{
       id: '0',
       role: 'system',
-      content: `Welcome! You're authenticated as **${role}**. Ask me anything and I'll retrieve information based on your access level.`,
+      content: `Welcome! You have full access to all documents. Ask me anything and I'll retrieve information from the knowledge base.`,
       timestamp: new Date()
     }]);
-  }, [role]);
+  }, []);
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || loading) return;
@@ -66,7 +61,6 @@ export default function ChatInterface({ jwt, role }: ChatInterfaceProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          jwt,
           question: input
         }),
       });
@@ -141,7 +135,7 @@ export default function ChatInterface({ jwt, role }: ChatInterfaceProps) {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, jwt]);
+  }, [input, loading]);
 
   const sampleQuestions: string[] = useMemo(() => [
     "What is the expense reimbursement policy?",

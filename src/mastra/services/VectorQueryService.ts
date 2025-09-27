@@ -2,7 +2,6 @@ import { embedMany } from "ai";
 
 import { openAIEmbeddingProvider } from "../config/openai";
 import { ValidationService } from "./ValidationService";
-import { RoleService } from "./RoleService";
 import { logger } from "../config/logger";
 
 export interface QueryInput {
@@ -62,104 +61,26 @@ export class VectorQueryService {
 
   static async searchWithFilters(
     embedding: number[],
-    filters: SecurityFilters,
+    _filters: SecurityFilters,
     vectorStore: unknown,
     indexName: string,
     topK: number,
     minSimilarity: number = 0.4
   ): Promise<QueryResult[]> {
-    logger.info('🔍 Applying query filters', { filters });
-    logger.info('🔍 Classification filters', { allowedClasses: filters.allowedClasses });
-    logger.info('🔍 Role filters', { allowTags: filters.allowTags });
-    
-    // Separate role tags from tenant tags for proper filtering
-    const userRoleTags = filters.allowTags.filter(tag => tag.startsWith('role:'));
-    const userTenantTags = filters.allowTags.filter(tag => tag.startsWith('tenant:'));
-    
-    // Extract role names from role tags (remove 'role:' prefix)
-    const userRoles = userRoleTags.map(tag => tag.replace('role:', ''));
-    
-    logger.info('🔍 HIERARCHICAL ACCESS CONTROL', {
-      originalRoles: userRoles,
-      roleAccessInfo: RoleService.formatRolesForLogging(userRoles),
-      classificationAccess: filters.allowedClasses,
-      tenantAccess: userTenantTags
-    });
-    
-    // Build proper Qdrant filter with correct security logic
-    const qdrantFilter: { must: Array<{ key: string; match: { any: string[] } }> } = {
-      must: [
-        // MUST match allowed classification level
-        {
-          key: "securityTags",
-          match: {
-            any: filters.allowedClasses
-          }
-        }
-      ]
-    };
-    
-    // HIERARCHICAL ROLE-BASED ACCESS CONTROL
-    // Use role hierarchy to expand user's effective roles
-    if (userRoles.length > 0) {
-      const accessInfo = RoleService.generateAccessTags(userRoles);
-      const effectiveRoleTags = accessInfo.expandedRoles.map(role => `role:${role}`);
-      
-      logger.info('🔍 EXPANDED ROLE ACCESS', {
-        originalRoles: userRoles,
-        effectiveRoles: accessInfo.expandedRoles,
-        queryTags: effectiveRoleTags
-      });
-      
-      // Documents must have at least ONE role that the user can access (including inherited roles)
-      qdrantFilter.must.push({
-        key: "securityTags",
-        match: {
-          any: effectiveRoleTags
-        }
-      });
-    } else {
-      // If user has no roles, they can only access documents marked as public
-      logger.info('🔍 User has no roles - restricting to public-only access');
-      qdrantFilter.must.push({
-        key: "securityTags",
-        match: {
-          any: ["role:public"]
-        }
-      });
-    }
-    
-    // Add tenant filtering as additional requirement
-    if (userTenantTags.length > 0) {
-      qdrantFilter.must.push({
-        key: "securityTags", 
-        match: {
-          any: userTenantTags
-        }
-      });
-    }
-    
-    logger.info('🔍 Query configuration', {
-      qdrantFilter,
-      minSimilarity
-    });
-    
+    logger.info('🔍 LOCAL MODE: Retrieving all documents without filters');
+
+    // No filters - retrieve all documents based on similarity only
     const results = await (vectorStore as any).query({
       indexName: indexName,
       queryVector: embedding,
       topK: topK,
-      filter: qdrantFilter,
       includeVector: false
     });
 
     logger.info(`🔍 Query returned ${results?.length || 0} results before similarity filtering`);
 
     if (!results || results.length === 0) {
-      logger.info('🔍 Access Control Summary - No accessible documents found (properly restricted)', {
-        userRoles: userRoleTags,
-        userTenant: userTenantTags,
-        maxClassification: filters.allowedClasses
-      });
+      logger.info('🔍 No documents found');
       return [];
     }
 
@@ -171,57 +92,26 @@ export class VectorQueryService {
     });
 
     logger.info(`🔍 After similarity filtering (>=${minSimilarity}): ${similarityFilteredResults.length}/${results.length} documents kept`);
-    
+
     if (similarityFilteredResults.length === 0) {
-      logger.info('🔍 Relevance Control Summary - No relevant documents found', {
-        securityPassed: results.length,
+      logger.info('🔍 No relevant documents found', {
         similarityThreshold: minSimilarity,
         highestScore: Math.max(...results.map((r: any) => r.score || 0)).toFixed(3)
       });
       return [];
     }
 
-    // Get user's expanded roles for validation
-    const accessInfo = userRoles.length > 0 ? RoleService.generateAccessTags(userRoles) : { expandedRoles: [] };
-    
-    // Log successful access control summary
-    logger.info('🔍 ACCESS CONTROL VALIDATION (with hierarchy)', {
-      documentsRetrieved: similarityFilteredResults.length,
-      userEffectiveRoles: accessInfo.expandedRoles,
-      userTenant: userTenantTags
+    logger.info('🔍 LOCAL MODE: Retrieved documents', {
+      documentsRetrieved: similarityFilteredResults.length
     });
 
-    return similarityFilteredResults.map((r: any, index: number) => {
+    return similarityFilteredResults.map((r: any) => {
       let securityTags: string[] = [];
-      
+
       if (Array.isArray(r.metadata?.securityTags)) {
         securityTags = r.metadata.securityTags;
       } else if (typeof r.metadata?.securityTags === 'string') {
         securityTags = r.metadata.securityTags.split(',').map((tag: string) => tag.trim());
-      }
-      
-      // Extract document roles and validate user access using hierarchy
-      const docRoles = securityTags.filter(tag => tag.startsWith('role:')).map(tag => tag.replace('role:', ''));
-      const docClassification = securityTags.find(tag => tag.startsWith('classification:'));
-      const hasValidRoleAccess = RoleService.canAccessDocument(userRoles, securityTags.filter(tag => tag.startsWith('role:')));
-      
-      logger.debug(`🔍 HIERARCHICAL ACCESS CHECK - Doc ${index + 1} (${r.metadata?.docId})`, {
-        documentRoles: docRoles,
-        classification: docClassification,
-        userAccess: hasValidRoleAccess ? 'GRANTED' : 'DENIED',
-        score: r.score
-      });
-      
-      // Enhanced security validation using role hierarchy
-      if (!hasValidRoleAccess && docRoles.length > 0) {
-        logger.warn(`⚠️ SECURITY WARNING: Document ${r.metadata?.docId} was retrieved but user lacks access!`, {
-          documentRequiredRoles: docRoles,
-          userEffectiveRoles: accessInfo.expandedRoles
-        });
-        
-        // Additional debugging - show what roles could access this document
-        const accessibleRoles = RoleService.getDocumentAccessibleRoles(docRoles);
-        logger.warn(`Roles that CAN access this doc: [${accessibleRoles.join(', ')}]`);
       }
       
       return {
