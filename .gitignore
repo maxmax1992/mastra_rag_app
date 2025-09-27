@@ -67,3 +67,5 @@ dist
 *.vsix
 .claude
 CLAUDE.md
+
+*.pdf
