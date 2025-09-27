@@ -1,14 +1,62 @@
 import { mastra } from '../mastra/index';
 import { logWorkflowStart, logWorkflowEnd, logError, logProgress, logger } from '../mastra/config/logger';
+import { DocumentPreprocessor, PreprocessingProgress } from '../mastra/services/DocumentPreprocessor';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 dotenv.config();
 
+async function preprocessCorpusDocuments(): Promise<void> {
+  const preprocessor = new DocumentPreprocessor();
+  const corpusPath = path.join(process.cwd(), 'corpus');
+
+  preprocessor.onProgress((progress: PreprocessingProgress) => {
+    const statusEmoji = {
+      'converting': '🔄',
+      'completed': '✅',
+      'skipped': '⏭️',
+      'error': '❌'
+    };
+    logger.info(`${statusEmoji[progress.status]} [${progress.currentFile}/${progress.totalFiles}] Transforming ${progress.fileName}.${progress.fileType} to .md`);
+  });
+
+  const files = await fs.readdir(corpusPath);
+  let convertedCount = 0;
+
+  for (const file of files) {
+    const filePath = path.join(corpusPath, file);
+    const ext = path.extname(file).toLowerCase();
+    const baseName = path.basename(file, ext);
+
+    // Skip if it's already markdown or if a markdown version already exists
+    if (['.md', '.txt', '.markdown'].includes(ext)) continue;
+
+    const mdPath = path.join(corpusPath, `${baseName}.md`);
+    const mdExists = await fs.access(mdPath).then(() => true).catch(() => false);
+
+    if (mdExists) {
+      logger.info(`⏭️ Skipping ${file} - markdown version already exists`);
+      continue;
+    }
+
+    // Convert non-markdown files
+    const result = await preprocessor.preprocessFile(filePath, convertedCount + 1, files.length);
+    if (result.wasConverted) convertedCount++;
+  }
+
+  if (convertedCount > 0) {
+    logger.info(`✅ Converted ${convertedCount} files to markdown`);
+  }
+}
+
 async function indexDocuments() {
   logger.info('🚀 Starting document indexing for Governed RAG');
-  
+
+  // First, preprocess any non-markdown files
+  logger.info('🔄 Checking for documents to convert...');
+  await preprocessCorpusDocuments();
+
   const sampleDocs: any[] = [
     {
       filePath: path.join(__dirname, '../../corpus/finance-policy.md'),

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/src/mastra/config/logger';
+import { DocumentPreprocessor, PreprocessingProgress } from '@/src/mastra/services/DocumentPreprocessor';
 
 const STATUS_VALUE = 500;
 export const maxDuration = 300; // 5 minutes for indexing
@@ -15,8 +16,21 @@ export async function POST(request: NextRequest) {
     // JWT is optional for indexing - we can index documents without authentication
     logger.info('Starting document indexing...');
 
-    // Define default documents to index from the corpus folder
+    // First, preprocess non-markdown files
+    const preprocessor = new DocumentPreprocessor();
     const corpusPath: string = path.join(process.cwd(), 'corpus');
+
+    const preprocessingResults: PreprocessingProgress[] = [];
+
+    preprocessor.onProgress((progress: PreprocessingProgress) => {
+      preprocessingResults.push(progress);
+      logger.info(`[${progress.currentFile}/${progress.totalFiles}] ${progress.status}: ${progress.fileName}`);
+    });
+
+    logger.info('Preprocessing documents...');
+    await preprocessor.preprocessCorpusDirectory(corpusPath);
+
+    // Now get all markdown files for indexing
     const corpusFiles = fs.readdirSync(corpusPath);
     
     const documents = corpusFiles

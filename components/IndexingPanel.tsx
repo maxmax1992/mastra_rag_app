@@ -3,6 +3,14 @@
 import { Database, Loader, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useState, useCallback, Dispatch, SetStateAction } from 'react';
 
+interface PreprocessingProgress {
+  currentFile: number;
+  totalFiles: number;
+  fileName: string;
+  fileType: string;
+  status: 'converting' | 'completed' | 'skipped' | 'error';
+}
+
 interface IndexingResult {
   success: boolean;
   indexed: number;
@@ -13,17 +21,20 @@ interface IndexingResult {
     chunks?: number;
     error?: string;
   }>;
+  preprocessing?: PreprocessingProgress[];
 }
 
 export default function IndexingPanel() {
   const [isIndexing, setIsIndexing] = useState(false);
   const [result, setResult] = useState<IndexingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [preprocessingStatus, setPreprocessingStatus] = useState<string | null>(null);
 
   const handleIndex = useCallback(async () => {
     setIsIndexing(true);
     setResult(null);
     setError(null);
+    setPreprocessingStatus('Checking for documents to convert...');
 
     try {
       const response: Response = await fetch('/api/index', {
@@ -40,11 +51,13 @@ export default function IndexingPanel() {
         throw new Error(data.error || 'Failed to start indexing');
       }
 
+      setPreprocessingStatus(null);
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsIndexing(false);
+      setPreprocessingStatus(null);
     }
   }, []);
 
@@ -69,7 +82,7 @@ export default function IndexingPanel() {
           {isIndexing ? (
             <>
               <Loader className="h-4 w-4 animate-spin" />
-              <span>Indexing...</span>
+              <span>{preprocessingStatus || 'Indexing...'}</span>
             </>
           ) : (
             <>
@@ -79,6 +92,15 @@ export default function IndexingPanel() {
           )}
         </button>
       </div>
+
+      {isIndexing && preprocessingStatus && (
+        <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <Loader className="h-4 w-4 text-blue-400 animate-spin" />
+            <span className="text-sm text-blue-300">{preprocessingStatus}</span>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
